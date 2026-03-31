@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Timing Verification - Surah Al-Fatiha</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #1a1a2e; color: #eee; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 8px; font-size: 1.4em; color: #e2b714; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 0.9em; direction: ltr; }
+  .controls { text-align: center; margin-bottom: 24px; }
+  .controls button { background: #e2b714; color: #1a1a2e; border: none; padding: 10px 24px; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: 600; margin: 0 4px; }
+  .controls button:hover { background: #f0c930; }
+  .controls button.active { background: #4ecca3; }
+  #time-display { direction: ltr; text-align: center; color: #888; font-family: monospace; margin-bottom: 16px; }
+  .ayah { background: #16213e; border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; }
+  .ayah-header { font-size: 0.8em; color: #4ecca3; margin-bottom: 8px; direction: ltr; text-align: left; }
+  .word { display: inline-block; font-size: 1.8em; padding: 4px 8px; margin: 2px; border-radius: 4px; cursor: pointer; transition: all 0.15s; font-family: "Scheherazade New", "Traditional Arabic", serif; }
+  .word:hover { background: rgba(226, 183, 20, 0.2); }
+  .word.active { background: #e2b714; color: #1a1a2e; transform: scale(1.1); }
+  .word.played { color: #4ecca3; }
+  .legend { direction: ltr; text-align: center; margin-top: 20px; font-size: 0.85em; color: #666; }
+  .legend span { margin: 0 12px; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .legend .dot.gold { background: #e2b714; }
+  .legend .dot.green { background: #4ecca3; }
+</style>
+</head>
+<body>
+
+<h1>Surah Al-Fatiha — Timing Verification</h1>
+<p class="subtitle">Click any word to jump to its timestamp. Active word highlights during playback.</p>
+
+<div class="controls">
+  <button onclick="playAll()">▶ Play All</button>
+  <button onclick="pauseAudio()">⏸ Pause</button>
+  <button onclick="resetAudio()">⏹ Reset</button>
+</div>
+<div id="time-display">0.000s / 0.000s</div>
+
+<div id="ayahs"></div>
+
+<div class="legend">
+  <span><span class="dot gold"></span> Currently playing</span>
+  <span><span class="dot green"></span> Already played</span>
+  <span>Click any word to jump</span>
+</div>
+
+<script>
+const audioSrc = "../audio/001.mp3";
+const audio = new Audio(audioSrc);
+
+const timingData = [
+  {
+    "surah": 1, "ayah": 1,
+    "segments": [[0,1,0,1680],[1,2,1680,2100],[2,3,2100,3360],[3,4,3360,6360]]
+  },
+  {
+    "surah": 1, "ayah": 2,
+    "segments": [[0,1,6360,8200],[1,2,8200,8920],[2,3,8920,9620],[3,4,9620,12480]]
+  },
+  {
+    "surah": 1, "ayah": 3,
+    "segments": [[0,1,12480,14400],[1,2,14400,16840]]
+  },
+  {
+    "surah": 1, "ayah": 4,
+    "segments": [[0,1,16840,18380],[1,2,18380,19000],[2,3,19000,21000]]
+  },
+  {
+    "surah": 1, "ayah": 5,
+    "segments": [[0,1,21000,22740],[1,2,22740,23500],[2,3,23500,24580],[3,4,24580,26720]]
+  },
+  {
+    "surah": 1, "ayah": 6,
+    "segments": [[0,1,26720,29140],[1,2,29140,29980],[2,3,29980,32460]]
+  },
+  {
+    "surah": 1, "ayah": 7,
+    "segments": [[0,1,33460,34700],[1,2,34700,35580],[2,3,35580,36480],[3,4,36480,37440],[4,5,37440,38160],[5,6,38160,39180],[6,7,39180,40100],[7,8,40100,40500],[8,9,40500,46180]]
+  }
+];
+
+const referenceWords = [
+  ["بِسْمِ", "ٱللَّهِ", "ٱلرَّحْمَٰنِ", "ٱلرَّحِيمِ"],
+  ["ٱلْحَمْدُ", "لِلَّهِ", "رَبِّ", "ٱلْعَٰلَمِينَ"],
+  ["ٱلرَّحْمَٰنِ", "ٱلرَّحِيمِ"],
+  ["مَٰلِكِ", "يَوْمِ", "ٱلدِّينِ"],
+  ["إِيَّاكَ", "نَعْبُدُ", "وَإِيَّاكَ", "نَسْتَعِينُ"],
+  ["ٱهْدِنَا", "ٱلصِّرَٰطَ", "ٱلْمُسْتَقِيمَ"],
+  ["صِرَٰطَ", "ٱلَّذِينَ", "أَنْعَمْتَ", "عَلَيْهِمْ", "غَيْرِ", "ٱلْمَغْضُوبِ", "عَلَيْهِمْ", "وَلَا", "ٱلضَّآلِّينَ"]
+];
+
+// Build all word elements with their timing info
+const allWordElements = [];
+
+const container = document.getElementById("ayahs");
+timingData.forEach((ayah, ayahIdx) => {
+  const div = document.createElement("div");
+  div.className = "ayah";
+
+  const header = document.createElement("div");
+  header.className = "ayah-header";
+  header.textContent = `Ayah ${ayah.ayah} (${ayah.segments.length} words)`;
+  div.appendChild(header);
+
+  ayah.segments.forEach((seg, wordIdx) => {
+    const span = document.createElement("span");
+    span.className = "word";
+    span.textContent = referenceWords[ayahIdx][wordIdx];
+    span.dataset.start = seg[2];
+    span.dataset.end = seg[3];
+    span.title = `${(seg[2]/1000).toFixed(2)}s – ${(seg[3]/1000).toFixed(2)}s`;
+
+    span.addEventListener("click", () => {
+      audio.currentTime = seg[2] / 1000;
+      audio.play();
+    });
+
+    div.appendChild(span);
+    allWordElements.push({ el: span, start: seg[2], end: seg[3] });
+  });
+
+  container.appendChild(div);
+});
+
+// Update highlighting during playback
+const timeDisplay = document.getElementById("time-display");
+let animFrame;
+
+function updateHighlight() {
+  const currentMs = audio.currentTime * 1000;
+  timeDisplay.textContent = `${audio.currentTime.toFixed(3)}s / ${(audio.duration || 0).toFixed(3)}s`;
+
+  allWordElements.forEach(w => {
+    if (currentMs >= w.start && currentMs < w.end) {
+      w.el.classList.add("active");
+      w.el.classList.remove("played");
+    } else if (currentMs >= w.end) {
+      w.el.classList.remove("active");
+      w.el.classList.add("played");
+    } else {
+      w.el.classList.remove("active", "played");
+    }
+  });
+
+  animFrame = requestAnimationFrame(updateHighlight);
+}
+
+audio.addEventListener("play", () => { animFrame = requestAnimationFrame(updateHighlight); });
+audio.addEventListener("pause", () => cancelAnimationFrame(animFrame));
+audio.addEventListener("ended", () => { cancelAnimationFrame(animFrame); resetAudio(); });
+
+function playAll() { audio.currentTime = 0; audio.play(); }
+function pauseAudio() { audio.pause(); }
+function resetAudio() {
+  audio.pause();
+  audio.currentTime = 0;
+  allWordElements.forEach(w => w.el.classList.remove("active", "played"));
+  timeDisplay.textContent = "0.000s / " + (audio.duration || 0).toFixed(3) + "s";
+}
+</script>
+</body>
+</html>
